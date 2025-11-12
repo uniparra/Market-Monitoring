@@ -1,0 +1,4 @@
+confluent-kafka
+google-genai==1.49.0
+weaviate-client==4.17.0
+huggingface_hub

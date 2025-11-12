@@ -1,0 +1,120 @@
+{
+  "classes": [
+    {
+      "class": "FinancialNews",
+      "description": "Noticias financieras relevantes para RAG.",
+      "vectorizer": "text2vec-huggingface",
+      "moduleConfig": {
+        "text2vec-huggingface": {
+          "model": "sentence-transformers/all-MiniLM-L6-v2",
+          "waitForModel": true
+        }
+      },
+      "properties": [
+        {
+          "name": "title",
+          "dataType": ["text"],
+          "indexFilterable": false,
+          "indexSearchable": true,
+          "moduleConfig": {
+            "text2vec-huggingface": {
+              "skip": false,
+              "vectorizePropertyName": false
+            }
+          }
+        },
+        {
+          "name": "link",
+          "dataType": ["text"],
+          "indexFilterable": false,
+          "indexSearchable": false
+        },
+        {
+          "name": "source",
+          "dataType": ["text"],
+          "indexFilterable": true,
+          "indexSearchable": true
+        },
+        {
+          "name": "sourceId",
+          "dataType": ["text"],
+          "indexFilterable": true,
+          "indexSearchable": false
+        },
+        {
+          "name": "publishedTimestamp",
+          "dataType": ["date"],
+          "indexFilterable": true,
+          "indexSearchable": false
+        },
+        {
+          "name": "summary",
+          "dataType": ["text"],
+          "indexFilterable": false,
+          "indexSearchable": true
+        },
+        {
+          "name": "symbol",
+          "dataType": ["text"],
+          "indexFilterable": true,
+          "indexSearchable": true
+        }
+      ]
+    },
+    {
+      "class": "TechnicalSignal",
+      "description": "Señales generadas por Flink (Cruces, Min/Max, Volatility).",
+      "vectorizer": "none",
+      "properties": [
+        {
+          "name": "symbol",
+          "dataType": ["text"],
+          "indexSearchable": true,
+          "indexFilterable": true
+        },
+        {
+          "name": "timestamp",
+          "dataType": ["date"],
+          "indexFilterable": true,
+          "indexSearchable": false
+        },
+        {
+          "name": "eventType",
+          "dataType": ["text"],
+          "indexFilterable": true,
+          "indexSearchable": true
+        },
+        {
+          "name": "details",
+          "dataType": ["text"],
+          "indexFilterable": false,
+          "indexSearchable": false
+        },
+        {
+          "name": "minPrice",
+          "dataType": ["number"],
+          "indexFilterable": true,
+          "indexSearchable": false
+        },
+        {
+          "name": "maxPrice",
+          "dataType": ["number"],
+          "indexFilterable": true,
+          "indexSearchable": false
+        },
+        {
+          "name": "sma20",
+          "dataType": ["number"],
+          "indexFilterable": true,
+          "indexSearchable": false
+        },
+        {
+          "name": "sma50",
+          "dataType": ["number"],
+          "indexFilterable": true,
+          "indexSearchable": false
+        }
+      ]
+    }
+  ]
+}

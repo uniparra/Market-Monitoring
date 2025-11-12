@@ -1,0 +1,149 @@
+services:
+  zookeeper:
+    image: zookeeper:3.8
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    restart: always
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    hostname: kafka
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,DOCKER://${KAFKA_BOOTSTRAP_SERVER}
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,DOCKER://${KAFKA_BOOTSTRAP_SERVER}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,DOCKER:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_RETENTION_HOURS: 24
+    restart: always
+
+  producer:
+    build:
+      context: ./services/api_to_kafka
+    container_name: producer
+    depends_on:
+      - kafka
+    environment:
+      - KAFKA_BROKER=${KAFKA_BOOTSTRAP_SERVER}
+      - TWELVE_DATA_API_KEY=${TWELVE_DATA_API_KEY}
+    restart: always
+
+  flink-jobmanager:
+    image: flink:1.19-scala_2.12
+    container_name: flink-jobmanager
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+    ports:
+      - "8081:8081"
+    depends_on:
+      - kafka
+    restart: always
+
+  flink-taskmanager:
+    image: flink:1.19-scala_2.12
+    container_name: flink-taskmanager
+    command: taskmanager
+    depends_on:
+      - flink-jobmanager
+    environment:
+        - |
+            FLINK_PROPERTIES=
+            jobmanager.rpc.address: flink-jobmanager
+            taskmanager.numberOfTaskSlots: 2
+    restart: always
+
+  tech-processor:
+    build:
+      context: ./services/flink
+    environment:
+      - JOBMANAGER_ADDRESS=flink-jobmanager
+      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP_SERVER}
+    depends_on:
+      - flink-jobmanager
+      - flink-taskmanager
+      - kafka
+    restart: on-failure
+
+  weaviate:
+    image: semitechnologies/weaviate:1.33.2
+    container_name: weaviate
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./services/rag_writer/weaviate_data:/var/lib/weaviate
+    environment:
+      - CLUSTER_HOSTNAME=weaviate
+      - QUERY_DEFAULTS_LIMIT=25
+      - AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true
+      - PERSISTENCE_DATA_PATH=/var/lib/weaviate
+      - DEFAULT_VECTORIZER_MODULE=text2vec-huggingface
+      - ENABLE_MODULES=text2vec-huggingface
+      - HUGGINGFACE_APIKEY=${HUGGINGFACE_APIKEY}
+    restart: on-failure
+
+  rag-writer:
+    build:
+      context: ./services/rag_writer
+    container_name: rag-writer
+    depends_on:
+      - kafka
+      - weaviate
+    environment:
+      - KAFKA_BROKER=${KAFKA_BOOTSTRAP_SERVER}
+      - WEAVIATE_URL=${WEAVIATE_URL}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - HUGGINGFACE_APIKEY=${HUGGINGFACE_APIKEY}
+      - TOPIC_FUNDAMENTAL=${FUNDAMENTAL_TOPIC}
+      - TOPIC_TECHNICAL=${PROCESSED_TECHNICAL_TOPIC}
+      - HUGGINGFACE_APIKEY=${HUGGINGFACE_APIKEY}
+    restart: on-failure
+
+  rag-api:
+    build:
+      context: ./services/rag_api
+      dockerfile: Dockerfile
+    container_name: rag-api
+    ports:
+      - "8000:8000"
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - WEAVIATE_URL=${WEAVIATE_URL}
+      - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACE_APIKEY}
+    depends_on:
+      - weaviate
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: always
+
+  rag-frontend:
+    build:
+      context: ./services/frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - RAG_API_URL=${BACKEND_URL}
+    depends_on:
+      - rag-api
+    restart: always

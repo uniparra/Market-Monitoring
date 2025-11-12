@@ -9,4 +9,4 @@ weaviate-client==4.17.0
 python-dotenv==1.0.1
 langchain-huggingface==1.0.1
 huggingface-hub==0.36.0
-sentence-transformers==5.1.2
+#sentence-transformers==5.1.2

@@ -1,5 +1,5 @@
 from langchain_weaviate import WeaviateVectorStore
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from langchain_core.runnables import RunnableParallel, RunnableLambda
 import weaviate
 from weaviate.client import WeaviateClient
@@ -8,7 +8,7 @@ from typing import List, Dict, Any
 import os
 
 from .prompt import RAG_PROMPT
-from .llm import SMALL_LLM as LLM
+from .llm import LLM
 
 WEAVIATE_URL = os.getenv("WEAVIATE_URL", "http://localhost:8080")
 
@@ -101,10 +101,9 @@ def get_news_retriever(client: WeaviateClient):
     if not client:
         return None
 
-    embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2"
+    embeddings =HuggingFaceEndpointEmbeddings(
+        model="sentence-transformers/all-MiniLM-L6-v2"
     )
-
     vectorstore = WeaviateVectorStore(
         client=client,
         index_name="FinancialNews",

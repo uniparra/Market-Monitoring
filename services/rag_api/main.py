@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from langchain_chain.rag_chain import rag_chain, weaviate_client
-from langchain_chain.llm import HUGGINGIGFACE_REPO_ID
+from langchain_chain.llm import GEMINI_MODEL
 
 app = FastAPI(
     title="RAG Financial Predictor",
@@ -57,7 +57,7 @@ async def process_query(query: Query):
 
         return {
             "answer": response.content,
-            "model": HUGGINGIGFACE_REPO_ID
+            "model": GEMINI_MODEL
         }
 
     except Exception as e:

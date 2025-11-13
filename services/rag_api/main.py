@@ -17,7 +17,7 @@ class Query(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "question": "¿Cuál es la predicción para SLB basada en las últimas señales técnicas y noticias del sector energético?"
+                "question":"¿Cuál es la predicción para SLB basada en las últimas señales técnicas y noticias del sector energético?"
             }
         }
 

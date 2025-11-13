@@ -147,7 +147,7 @@ with col2:
     st.subheader("Por Símbolo")
 
     # Lista de símbolos comunes
-    common_symbols = ["SLB", "AAPL", "TSLA", "MSFT", "GOOGL", "AMZN", "META", "NVDA"]
+    common_symbols = ["SLB", "XOM", "CVX", "NEE"]
 
     # Selectbox para símbolos comunes
     symbol_select = st.selectbox(

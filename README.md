@@ -25,33 +25,20 @@ En resumen,
 
 
 ## Cómo ejecutar
-Para ejecutar el código es suficiente con compilar el componente de flink, situandonos en el directorio raíz del microservicio, (/services/flink) con (version de sbt, 1.9.7) 
-```
-sbt assembly
-```
-Mientras tanto configurar el .env ir añadiendo lo siguiente, 
+Configurar el .env ir añadiendo lo siguiente, 
 ```
 TWELVE_DATA_API_KEY=
 OPENAI_API_KEY=
 GOOGLE_API_KEY=
 GOOGLE_PROJECT_ID=
 HUGGINGFACE_APIKEY=
-
-KAFKA_BOOTSTRAP_SERVER=kafka:29092
-WEAVIATE_URL=weaviate:8080
-BACKEND_URL=http://rag-api:8000
-
-FUNDAMENTAL_TOPIC="raw_market_data_fundamental"
-TECHNICAL_TOPIC="raw_market_data_technical"
-PROCESSED_TECHNICAL_TOPIC="processed_market_signals"
 ```
-Finalmente montar el docker compose. Tras ello abrimos, http://localhost:8501/ que es donde estará el front para interactuar con el rag.
+Montar el docker compose. Tras ello abrimos, http://localhost:8501/ que es donde estará el front para interactuar con el rag.
 
 
 
 ## Cosas a mejorar:
 1. Gestionar la eliminación de los índices. Ya que es un proceso, que en el caso de que estuviera en producción sería un proceso de streaming habría que gestionar bien la eliminación de índices. Los datos técnicos se podrían borrar con un criterio de tiempo, según volumetría eliminar aquellos que tienen más de X tiempo. Tal vez añadir un proceso que los compactifique. Es decir, que vaya guardando sólo ciertos datos técnicos con relevancia a futuro y eliminar los demás. En cuanto a las noticias sin valor de presente simplemente se podrían guardar en un data storage etiquetandolos según relevancia que ya hayan tenido en precio de acción para un futuro entrenamiento y eliminarlas del vector store al cabo de X tiempo.
-2. Las RSS Feeds no me daban información sobre el articulo en cuestion, solo una url, al no haber encontrado mejores fuentes he acudido a un agente de ia para que se inventara, a partir de los titulares, un resumen de noticia que es lo que he usado como noticia. Por lo que un web scrapper sería ideal en este punto.
+2. Las RSS Feeds no me daban información sobre el articulo en cuestion, solo una url, al no haber encontrado mejores fuentes he acudido a un agente de ia para que se inventara, a partir de los titulares, un resumen de noticia que es lo que he usado como noticia. Por lo que un web scraper sería ideal en este punto.
 3. El diseño funcional seguramente sea muy mejorable, desde las señales técnicas calculadas hasta las fuentes de las noticias son mejorables.
-4. Creo que podría ser interesante dejar la compilación del componente de scala (de flink) como tarea dentro del contenedor. Para evitar al usuario tener que compilar.
-5. Hay una colección de variables que en lugar de ir en el .env deberían de ir en un .conf.
+4. Y muchas más.

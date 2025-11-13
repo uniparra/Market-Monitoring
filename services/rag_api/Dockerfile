@@ -1,4 +1,3 @@
-# Usar una imagen base de Python oficial, ligera (slim)
 FROM python:3.12-slim
 
 WORKDIR /app

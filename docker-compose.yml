@@ -46,9 +46,6 @@ services:
   flink-jobmanager:
     image: flink:1.19-scala_2.12
     container_name: flink-jobmanager
-    env_file:
-      - .env
-      - config.env
     command: jobmanager
     environment:
       - |
@@ -63,9 +60,6 @@ services:
   flink-taskmanager:
     image: flink:1.19-scala_2.12
     container_name: flink-taskmanager
-    env_file:
-      - .env
-      - config.env
     command: taskmanager
     depends_on:
       - flink-jobmanager

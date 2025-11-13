@@ -88,7 +88,6 @@ def generate_new(title):
         return f"Error al generar la noticia con Gemini: {e}"
 
 
-# Usamos la funcion de generación de noticia
 def insert_fundamental(payload):
     data = {
         "title": payload.get("title"),

@@ -111,7 +111,6 @@ def get_news_retriever(client: WeaviateClient):
         embedding=embeddings
     )
 
-    # Usar hybrid search en lugar de solo similarity search
     return vectorstore.as_retriever(
         search_type="similarity",
         search_kwargs={"k": 4}

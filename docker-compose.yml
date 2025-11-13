@@ -3,6 +3,9 @@ services:
     image: zookeeper:3.8
     hostname: zookeeper
     container_name: zookeeper
+    env_file:
+      - .env
+      - config.env
     ports:
       - "2181:2181"
     environment:
@@ -14,6 +17,9 @@ services:
     image: confluentinc/cp-kafka:7.4.0
     hostname: kafka
     container_name: kafka
+    env_file:
+      - .env
+      - config.env
     ports:
       - "9092:9092"
     depends_on:
@@ -34,6 +40,9 @@ services:
     build:
       context: ./services/api_to_kafka
     container_name: producer
+    env_file:
+      - .env
+      - config.env
     depends_on:
       - kafka
     environment:
@@ -44,6 +53,9 @@ services:
   flink-jobmanager:
     image: flink:1.19-scala_2.12
     container_name: flink-jobmanager
+    env_file:
+      - .env
+      - config.env
     command: jobmanager
     environment:
       - |
@@ -58,6 +70,9 @@ services:
   flink-taskmanager:
     image: flink:1.19-scala_2.12
     container_name: flink-taskmanager
+    env_file:
+      - .env
+      - config.env
     command: taskmanager
     depends_on:
       - flink-jobmanager
@@ -83,6 +98,9 @@ services:
   weaviate:
     image: semitechnologies/weaviate:1.33.2
     container_name: weaviate
+    env_file:
+      - .env
+      - config.env
     ports:
       - "8080:8080"
     volumes:
@@ -101,6 +119,9 @@ services:
     build:
       context: ./services/rag_writer
     container_name: rag-writer
+    env_file:
+      - .env
+      - config.env
     depends_on:
       - kafka
       - weaviate
@@ -119,6 +140,9 @@ services:
       context: ./services/rag_api
       dockerfile: Dockerfile
     container_name: rag-api
+    env_file:
+      - .env
+      - config.env
     ports:
       - "8000:8000"
     environment:
@@ -140,6 +164,9 @@ services:
       context: ./services/frontend
       dockerfile: Dockerfile
     container_name: frontend
+    env_file:
+      - .env
+      - config.env
     ports:
       - "8501:8501"
     environment:

@@ -189,7 +189,7 @@ object TechnicalProcessor {
 
     // Kafka source config
     val source = KafkaSource.builder[String]()
-      .setBootstrapServers(sys.env.getOrElse("KAFKA_BOOTSTRAP", "localhost:9092"))
+      .setBootstrapServers(sys.env.getOrElse("KAFKA_BOOTSTRAP_SERVER", "localhost:9092"))
       .setTopics("raw_market_data_technical")
       .setGroupId("technical-processor")
       .setStartingOffsets(OffsetsInitializer.earliest())

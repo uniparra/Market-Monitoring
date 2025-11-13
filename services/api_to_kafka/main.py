@@ -7,7 +7,7 @@ import feedparser
 from confluent_kafka import Producer
 
 # --- CONFIGURACIÓN ---
-KAFKA_BROKER = os.environ.get('KAFKA_BROKER', 'kafka:9092')
+KAFKA_BROKER = os.environ.get('KAFKA_BOOTSTRAP_SERVER', 'kafka:9092')
 TWELVE_DATA_API_KEY = os.environ.get('TWELVE_DATA_API_KEY')
 
 TICKERS_ENERGIA = ["XOM", "CVX", "SLB", "NEE"]  # ExxonMobil, Chevron, Schlumberger, NextEra Energy

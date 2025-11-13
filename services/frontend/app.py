@@ -12,7 +12,7 @@ st.set_page_config(
 
 # URL de la API (configurable desde variables de entorno)
 import os
-API_URL = os.getenv("RAG_API_URL", "http://rag-api:8000")
+API_URL = os.getenv("BACKEND_URL")
 
 # Estilos CSS personalizados
 st.markdown("""

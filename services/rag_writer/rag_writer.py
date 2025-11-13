@@ -7,9 +7,9 @@ import google.genai as genai
 
 
 # Config
-KAFKA_BROKER = os.getenv("KAFKA_BROKER")
-TOPIC_FUNDAMENTAL = os.getenv("TOPIC_FUNDAMENTAL")
-TOPIC_TECHNICAL = os.getenv("TOPIC_TECHNICAL")
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVER")
+TOPIC_FUNDAMENTAL = os.getenv("FUNDAMENTAL_TOPIC")
+TOPIC_TECHNICAL = os.getenv("PROCESSED_TECHNICAL_TOPIC")
 WEAVIATE_URL = os.getenv("WEAVIATE_URL")
 huggingface_key = os.getenv("HUGGINGFACE_APIKEY")
 

@@ -1,6 +1,5 @@
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import HuggingFaceEndpoint
-import os
 
 GEMINI_MODEL = "gemini-2.5-flash"
 HUGGINGIGFACE_REPO_ID = "meta-llama/Llama-3.1-8B-Instruct"

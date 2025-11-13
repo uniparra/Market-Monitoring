@@ -13,7 +13,6 @@ import play.api.libs.json._
 import scala.collection.JavaConverters._
 import scala.util.{Failure, Success, Try}
 
-// ---------------- JSON models ----------------
 case class OHLCV(datetime: String, open: Double, high: Double, low: Double, close: Double, volume: Long)
 object OHLCV {
   implicit val reads: Reads[OHLCV] = new Reads[OHLCV] {
@@ -28,28 +27,23 @@ object OHLCV {
   }
 }
 
-// Normalized tick
 case class Tick(symbol: String, datetime: String, open: Double, high: Double, low: Double, close: Double, volume: Long)
 object Tick {
   implicit val writes: OWrites[Tick] = Json.writes[Tick]
 }
 
-// signal event to emit
 case class SignalEvent(symbol: String, timestamp: String, eventType: String, details: String, currentPrice: Double, minPrice: Double, maxPrice: Double, sma20: Option[Double], sma50: Option[Double])
 object SignalEvent {
   implicit val writes: OWrites[SignalEvent] = Json.writes[SignalEvent]
 }
 
-// ---------------- Processor (stateful) ----------------
 class TechnicalKeyedProcessor extends KeyedProcessFunction[String, Tick, String] {
 
-  // states
   lazy val maxState: ValueState[Double] =
     getRuntimeContext.getState(new ValueStateDescriptor[Double]("maxPrice", classOf[Double]))
   lazy val minState: ValueState[Double] =
     getRuntimeContext.getState(new ValueStateDescriptor[Double]("minPrice", classOf[Double]))
 
-  // For SMA computations we use ListState to store last N closes and ValueState for running sums
   lazy val closesState: ListState[Double] =
     getRuntimeContext.getListState(new ListStateDescriptor[Double]("closes", classOf[Double]))
 
@@ -58,7 +52,6 @@ class TechnicalKeyedProcessor extends KeyedProcessFunction[String, Tick, String]
   lazy val sum50State: ValueState[Double] =
     getRuntimeContext.getState(new ValueStateDescriptor[Double]("sum50", classOf[Double]))
 
-  // for detecting cross we store previous sma20 and sma50
   lazy val prevSma20State: ValueState[Double] =
     getRuntimeContext.getState(new ValueStateDescriptor[Double]("prevSma20", classOf[Double]))
   lazy val prevSma50State: ValueState[Double] =
@@ -69,12 +62,10 @@ class TechnicalKeyedProcessor extends KeyedProcessFunction[String, Tick, String]
                               out: Collector[String]): Unit = {
 
     val symbol = value.symbol
-    // init states if null
     val currentMax = Option(maxState.value()).filterNot(_.isNaN).getOrElse(Double.MinValue)
     val currentMin = Option(minState.value()).filterNot(_.isNaN).getOrElse(Double.MaxValue)
     var updated = false
 
-    // Update max/min
     if (value.high > currentMax) {
       maxState.update(value.high)
       updated = true
@@ -84,19 +75,15 @@ class TechnicalKeyedProcessor extends KeyedProcessFunction[String, Tick, String]
       updated = true
     }
 
-    // Update closes list and running sums for SMA20/SMA50
     val closesIter = Option(closesState.get()).map(_.iterator().asScala.toList).getOrElse(Nil)
     val closes = scala.collection.mutable.Queue[Double]()
     closes ++= closesIter
     closes.enqueue(value.close)
 
-    // keep only last 50 closes
     while (closes.size > 50) closes.dequeue()
 
-    // update ListState
     closesState.update(closes.asJava)
 
-    // compute sum20 and sum50 quickly
     val sum20 = closes.takeRight(20).sum
     val sum50 = closes.sum
 
@@ -106,26 +93,20 @@ class TechnicalKeyedProcessor extends KeyedProcessFunction[String, Tick, String]
     val sma20Opt = if (closes.size >= 20) Some(sum20 / 20.0) else None
     val sma50Opt = if (closes.size >= 50) Some(sum50 / 50.0) else None
 
-    // detect golden / death cross
     val prevSma20 = Option(prevSma20State.value()).filterNot(_.isNaN)
     val prevSma50 = Option(prevSma50State.value()).filterNot(_.isNaN)
 
-    // update prev states after computing signals
     sma20Opt.foreach(s => prevSma20State.update(s))
     sma50Opt.foreach(s => prevSma50State.update(s))
 
-    // Check crosses if we have both current and previous
     val crossed = (prevSma20, prevSma50, sma20Opt, sma50Opt) match {
       case (Some(p20), Some(p50), Some(s20), Some(s50)) =>
-        // golden cross: previously s20 <= s50 and now s20 > s50
         if (p20 <= p50 && s20 > s50) Some("golden_cross")
-        // death cross: previously s20 >= s50 and now s20 < s50
         else if (p20 >= p50 && s20 < s50) Some("death_cross")
         else None
       case _ => None
     }
 
-    // volatility spike detection: price deviates more than threshold from SMA20
     val volSpike = sma20Opt match {
       case Some(s20) =>
         val dev = math.abs(value.close - s20) / s20
@@ -133,7 +114,6 @@ class TechnicalKeyedProcessor extends KeyedProcessFunction[String, Tick, String]
       case _ => None
     }
 
-    // Emit events if updated or cross or spike
     if (updated) {
       val ev = SignalEvent(
         symbol = symbol,
@@ -181,13 +161,11 @@ class TechnicalKeyedProcessor extends KeyedProcessFunction[String, Tick, String]
   }
 }
 
-// ---------------- Main job ----------------
 object TechnicalProcessor {
   def main(args: Array[String]): Unit = {
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setParallelism(1)
 
-    // Kafka source config
     val source = KafkaSource.builder[String]()
       .setBootstrapServers(sys.env.getOrElse("KAFKA_BOOTSTRAP_SERVER", "localhost:9092"))
       .setTopics("raw_market_data_technical")
@@ -198,7 +176,6 @@ object TechnicalProcessor {
 
     val raw = env.fromSource(source, WatermarkStrategy.noWatermarks(), "KafkaTechnicalSource")
 
-    // Expand the array of values into individual ticks
     val ticks: DataStream[Tick] = raw.flatMap { msg =>
       Try(Json.parse(msg)) match {
         case Success(js) =>
@@ -215,14 +192,12 @@ object TechnicalProcessor {
       }
     }
 
-    // key by symbol and process
     val processed = ticks
       .keyBy(_.symbol)
       .process(new TechnicalKeyedProcessor)
 
-    // configure Kafka sink to publish JSON signals to 'processed_market_signals'
     val kafkaSink = KafkaSink.builder[String]()
-      .setBootstrapServers(sys.env.getOrElse("KAFKA_BOOTSTRAP", "localhost:9092"))
+      .setBootstrapServers(sys.env.getOrElse("KAFKA_BOOTSTRAP_SERVER", "localhost:9092"))
       .setRecordSerializer(
         KafkaRecordSerializationSchema.builder[String]()
           .setTopic("processed_market_signals")

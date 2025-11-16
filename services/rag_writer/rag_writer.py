@@ -1,11 +1,21 @@
 import os
 import json
 import time
+import logging
 from confluent_kafka import Consumer
 import weaviate
 import google.genai as genai
 from langchain_huggingface import HuggingFaceEndpointEmbeddings
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Config
 KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVER")
@@ -36,10 +46,10 @@ for collection_def in schema.get("classes", []):
     name = collection_def.get("class")
 
     if client.collections.exists(name):
-        print(f"[Weaviate] Collection '{name}' already exists.")
+        logger.info(f"[Weaviate] Collection '{name}' already exists.")
     else:
         client.collections.create_from_dict(collection_def)
-        print(f"[Weaviate] Created collection '{name}' from schema.")
+        logger.info(f"[Weaviate] Created collection '{name}' from schema.")
 
 news_collection = client.collections.get("FinancialNews")
 signals_collection = client.collections.get("TechnicalSignal")
@@ -80,11 +90,9 @@ def generate_new(title):
                 "temperature": 0.7
             }
         )
-        print("[RAG] Generating news summary with Gemini...")
-        print(response)
         new = response.text.strip()
 
-        print("[RAG] Resumen de noticia generado.")
+        logger.info("Resumen de noticia generado.")
         return new
 
     except Exception as e:
@@ -105,7 +113,7 @@ def insert_fundamental(payload):
         "publishedTimestamp": payload.get("publishedTimestamp")
     }
     news_collection.data.insert(properties=data, vector=vector)
-    print(f"[Weaviate] Inserted FinancialNews: {payload.get('id')}")
+    logger.info(f"[Weaviate] Inserted FinancialNews: {payload.get('id')}")
 
 
 def insert_technical(payload):
@@ -120,11 +128,11 @@ def insert_technical(payload):
         "sma50": payload.get("sma50")
     }
     signals_collection.data.insert(data)
-    print(f"[Weaviate] Inserted TechnicalSignal for {payload.get('symbol')}")
+    logger.info(f"[Weaviate] Inserted TechnicalSignal for {payload.get('symbol')}")
 
 
 def run():
-    print("rag-writer started, consuming from:", TOPIC_FUNDAMENTAL, TOPIC_TECHNICAL)
+    logger.info("rag-writer started, consuming from:", TOPIC_FUNDAMENTAL, TOPIC_TECHNICAL)
     try:
         while True:
             msg = consumer.poll(1.0)
@@ -132,13 +140,13 @@ def run():
                 continue
 
             if msg.error():
-                print("Kafka error:", msg.error())
+                logger.error("Kafka error:", msg.error())
                 continue
 
             try:
                 payload = json.loads(msg.value().decode("utf-8"))
             except Exception as e:
-                print("Invalid JSON:", e)
+                logger.error("Invalid JSON:", e)
                 consumer.commit(message=msg)
                 continue
 
@@ -149,14 +157,14 @@ def run():
                 elif topic == TOPIC_TECHNICAL:
                     insert_technical(payload)
                 else:
-                    print("Unknown topic:", topic)
+                    logger.error("Unknown topic:", topic)
                 consumer.commit(message=msg)
             except Exception as e:
-                print("Error inserting into Weaviate:", e)
+                logger.error("Error inserting into Weaviate:", e)
             time.sleep(3)
 
     except KeyboardInterrupt:
-        print("Stopping consumer...")
+        logger.error("Stopping consumer...")
     finally:
         consumer.close()
         client.close()

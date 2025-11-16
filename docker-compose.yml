@@ -1,6 +1,11 @@
 services:
   zookeeper:
     image: zookeeper:3.8
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     hostname: zookeeper
     container_name: zookeeper
     ports:
@@ -12,6 +17,11 @@ services:
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     hostname: kafka
     container_name: kafka
     ports:
@@ -33,6 +43,11 @@ services:
   producer:
     build:
       context: ./services/api_to_kafka
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     container_name: producer
     env_file:
       - .env
@@ -45,6 +60,11 @@ services:
 
   flink-jobmanager:
     image: flink:1.19-scala_2.12
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     container_name: flink-jobmanager
     command: jobmanager
     environment:
@@ -59,6 +79,11 @@ services:
 
   flink-taskmanager:
     image: flink:1.19-scala_2.12
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     container_name: flink-taskmanager
     command: taskmanager
     depends_on:
@@ -73,6 +98,11 @@ services:
   tech-processor:
     build:
       context: ./services/flink
+    logging:
+        driver: "json-file"
+        options:
+            max-size: "10m"
+            max-file: "3"
     container_name: tech-processor
     env_file:
       - .env
@@ -87,6 +117,11 @@ services:
 
   weaviate:
     image: semitechnologies/weaviate:1.33.2
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     container_name: weaviate
     env_file:
       - .env
@@ -108,6 +143,11 @@ services:
   rag-writer:
     build:
       context: ./services/rag_writer
+    logging:
+        driver: "json-file"
+        options:
+            max-size: "10m"
+            max-file: "3"
     container_name: rag-writer
     env_file:
       - .env
@@ -124,6 +164,11 @@ services:
     build:
       context: ./services/rag_api
       dockerfile: Dockerfile
+    logging:
+        driver: "json-file"
+        options:
+            max-size: "10m"
+            max-file: "3"
     container_name: rag-api
     env_file:
       - .env
@@ -147,6 +192,11 @@ services:
     build:
       context: ./services/frontend
       dockerfile: Dockerfile
+    logging:
+        driver: "json-file"
+        options:
+            max-size: "10m"
+            max-file: "3"
     container_name: frontend
     env_file:
       - .env

@@ -11,6 +11,7 @@ import org.apache.flink.util.Collector
 import play.api.libs.json._
 
 import scala.collection.JavaConverters._
+import scala.collection.immutable.Queue
 import scala.util.{Failure, Success, Try}
 
 case class OHLCV(datetime: String, open: Double, high: Double, low: Double, close: Double, volume: Long)
@@ -61,101 +62,93 @@ class TechnicalKeyedProcessor extends KeyedProcessFunction[String, Tick, String]
                               ctx: KeyedProcessFunction[String, Tick, String]#Context,
                               out: Collector[String]): Unit = {
 
-    val symbol = value.symbol
-    val currentMax = Option(maxState.value()).filterNot(_.isNaN).getOrElse(Double.MinValue)
-    val currentMin = Option(minState.value()).filterNot(_.isNaN).getOrElse(Double.MaxValue)
-    var updated = false
 
-    if (value.high > currentMax) {
-      maxState.update(value.high)
-      updated = true
-    }
-    if (value.low < currentMin) {
-      minState.update(value.low)
-      updated = true
+    def updateMinMax(currentMin: Double, currentMax: Double, high: Double, low: Double): (Double, Double, Boolean) = {
+      if (high > currentMax) (currentMin, high, true)
+      else if (low < currentMin) (low, currentMax, true)
+      else (currentMin, currentMax, false)
     }
 
-    val closesIter = Option(closesState.get()).map(_.iterator().asScala.toList).getOrElse(Nil)
-    val closes = scala.collection.mutable.Queue[Double]()
-    closes ++= closesIter
-    closes.enqueue(value.close)
+    def trimQueue(queue: Queue[Double], maxSize: Int = 50): Queue[Double] =
+      if (queue.size > maxSize) queue.drop(queue.size - maxSize) else queue
 
-    while (closes.size > 50) closes.dequeue()
+    def calculateSMA(queue: Queue[Double], n: Int): Option[Double] =
+      if (queue.size >= n) Some(queue.takeRight(n).sum / n) else None
 
-    closesState.update(closes.asJava)
+    def detectCross(prev20: Option[Double], prev50: Option[Double], sma20: Option[Double], sma50: Option[Double]): Option[String] =
+      (prev20, prev50, sma20, sma50) match {
+        case (Some(p20), Some(p50), Some(s20), Some(s50)) =>
+          if (p20 <= p50 && s20 > s50) Some("golden_cross")
+          else if (p20 >= p50 && s20 < s50) Some("death_cross")
+          else None
+        case _ => None
+      }
 
-    val sum20 = closes.takeRight(20).sum
-    val sum50 = closes.sum
+    def detectVolSpike(close: Double, sma20: Option[Double]): Option[(String, Double)] =
+      sma20.flatMap { s20 =>
+        val dev = math.abs(close - s20) / s20
+        if (dev >= 0.02) Some(("volatility_spike", dev)) else None
+      }
 
+    def makeEvent(eventType: String,
+                  details: String,
+                  value: Tick,
+                  minPrice: Double,
+                  maxPrice: Double,
+                  sma20: Option[Double],
+                  sma50: Option[Double]): SignalEvent =
+      SignalEvent(
+        symbol = value.symbol,
+        timestamp = value.datetime.replace(" ", "T") + "Z",
+        eventType = eventType,
+        details = details,
+        currentPrice = value.close,
+        minPrice = minPrice,
+        maxPrice = maxPrice,
+        sma20 = sma20,
+        sma50 = sma50
+      )
+
+
+    val currentMax: Double = Option(maxState.value()).filterNot(_.isNaN).getOrElse(Double.MinValue)
+    val currentMin: Double = Option(minState.value()).filterNot(_.isNaN).getOrElse(Double.MaxValue)
+    val prevSma20: Option[Double] = Option(prevSma20State.value()).filterNot(_.isNaN)
+    val prevSma50: Option[Double] = Option(prevSma50State.value()).filterNot(_.isNaN)
+    val closesIter: List[Double] = Option(closesState.get()).map(_.iterator().asScala.toList).getOrElse(Nil)
+    val closesQueue: Queue[Double] = Queue(closesIter: _*).enqueue(value.close)
+    val trimmedQueue: Queue[Double] = trimQueue(closesQueue)
+
+
+    val (newMin, newMax, updated) = updateMinMax(currentMin, currentMax, value.high, value.low)
+    val sum20 = trimmedQueue.takeRight(20).sum
+    val sum50 = trimmedQueue.sum
+    val sma20Opt = calculateSMA(trimmedQueue, 20)
+    val sma50Opt = calculateSMA(trimmedQueue, 50)
+    val crossOpt = detectCross(prevSma20, prevSma50, sma20Opt, sma50Opt)
+    val volSpikeOpt = detectVolSpike(value.close, sma20Opt)
+
+
+    maxState.update(newMax)
+    minState.update(newMin)
     sum20State.update(sum20)
     sum50State.update(sum50)
+    sma20Opt.foreach(prevSma20State.update)
+    sma50Opt.foreach(prevSma50State.update)
+    closesState.update(trimmedQueue.asJava)
 
-    val sma20Opt = if (closes.size >= 20) Some(sum20 / 20.0) else None
-    val sma50Opt = if (closes.size >= 50) Some(sum50 / 50.0) else None
-
-    val prevSma20 = Option(prevSma20State.value()).filterNot(_.isNaN)
-    val prevSma50 = Option(prevSma50State.value()).filterNot(_.isNaN)
-
-    sma20Opt.foreach(s => prevSma20State.update(s))
-    sma50Opt.foreach(s => prevSma50State.update(s))
-
-    val crossed = (prevSma20, prevSma50, sma20Opt, sma50Opt) match {
-      case (Some(p20), Some(p50), Some(s20), Some(s50)) =>
-        if (p20 <= p50 && s20 > s50) Some("golden_cross")
-        else if (p20 >= p50 && s20 < s50) Some("death_cross")
-        else None
-      case _ => None
-    }
-
-    val volSpike = sma20Opt match {
-      case Some(s20) =>
-        val dev = math.abs(value.close - s20) / s20
-        if (dev >= 0.02) Some(("volatility_spike", dev)) else None
-      case _ => None
-    }
 
     if (updated) {
-      val ev = SignalEvent(
-        symbol = symbol,
-        timestamp = value.datetime.replace(" ", "T") + "Z",
-        eventType = "new_min_or_max",
-        details = s"newMin=${minState.value()}, newMax=${maxState.value()}",
-        currentPrice = value.close,
-        minPrice = minState.value(),
-        maxPrice = maxState.value(),
-        sma20 = sma20Opt,
-        sma50 = sma50Opt
-      )
+      val ev = makeEvent("new_min_or_max", s"newMin=$newMin, newMax=$newMax", value, newMin, newMax, sma20Opt, sma50Opt)
       out.collect(Json.toJson(ev).toString())
     }
 
-    crossed.foreach { c =>
-      val ev = SignalEvent(
-        symbol = symbol,
-        timestamp = value.datetime.replace(" ", "T") + "Z",
-        eventType = c,
-        details = s"cross detected: $c",
-        currentPrice = value.close,
-        minPrice = minState.value(),
-        maxPrice = maxState.value(),
-        sma20 = sma20Opt,
-        sma50 = sma50Opt
-      )
+    crossOpt.foreach { c =>
+      val ev = makeEvent(c, s"cross detected: $c", value, newMin, newMax, sma20Opt, sma50Opt)
       out.collect(Json.toJson(ev).toString())
     }
 
-    volSpike.foreach { case (label, dev) =>
-      val ev = SignalEvent(
-        symbol = symbol,
-        timestamp = value.datetime.replace(" ", "T") + "Z",
-        eventType = label,
-        details = f"dev=${dev}%.4f",
-        currentPrice = value.close,
-        minPrice = minState.value(),
-        maxPrice = maxState.value(),
-        sma20 = sma20Opt,
-        sma50 = sma50Opt
-      )
+    volSpikeOpt.foreach { case (label, dev) =>
+      val ev = makeEvent(label, f"dev=$dev%.4f", value, newMin, newMax, sma20Opt, sma50Opt)
       out.collect(Json.toJson(ev).toString())
     }
   }

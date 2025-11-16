@@ -4,7 +4,18 @@ import time
 import json
 import requests
 import feedparser
+import logging
 from confluent_kafka import Producer
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    handlers=[
+        logging.StreamHandler()  # Solo consola
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 KAFKA_BROKER = os.environ.get('KAFKA_BOOTSTRAP_SERVER', 'kafka:9092')
@@ -26,9 +37,9 @@ TOPIC_FUNDAMENTAL = 'raw_market_data_fundamental'
 def delivery_report(err, msg):
     """Callback que confirma la entrega de mensajes o muestra error."""
     if err is not None:
-        print(f"[ERROR] Entrega fallida: {err}")
+        logger.error(f"Entrega fallida: {err}")
     else:
-        print(f"[OK] Mensaje entregado a {msg.topic()} [{msg.partition()}] offset {msg.offset()}")
+        logger.info(f"Mensaje entregado a {msg.topic()} [{msg.partition()}] offset {msg.offset()}")
 
 try:
     producer_config = {
@@ -38,14 +49,14 @@ try:
     }
     producer = Producer(producer_config)
 except Exception as e:
-    print(f"Error al conectar a Kafka: {e}")
+    logger.error(f"Error al conectar a Kafka: {e}")
     exit(1)
 
 
 # --- FUNCIONES DE POLLING ---
 def get_technical_data():
     """Recupera datos técnicos de Twelve Data."""
-    print("--- Polling: Datos Técnicos ---")
+    logger.info("--- Polling: Datos Técnicos ---")
 
     for ticker in TICKERS_ENERGIA:
         url = f"https://api.twelvedata.com/time_series?symbol={ticker}&interval=15min&apikey={TWELVE_DATA_API_KEY}"
@@ -61,15 +72,15 @@ def get_technical_data():
                 callback=delivery_report
             )
             producer.poll(0)
-            print(f"  [OK] Enviado dato técnico para {ticker}")
+            logger.info(f"Enviado dato técnico para {ticker}")
 
         except Exception as e:
-            print(f"  [ERROR] Falló la API o envío a Kafka: {e}")
+            logger.error(f"Falló la API o envío a Kafka: {e}")
 
 
 def get_fundamental_data():
     """Recupera noticias financieras de Bloomberg y Reuters (RSS)."""
-    print("--- Polling: Datos Fundamentales (RSS) ---")
+    logger.info("--- Polling: Datos Fundamentales (RSS) ---")
 
     sources = {
         "bloomberg": "bloomberg.com",
@@ -91,14 +102,13 @@ def get_fundamental_data():
                             time.mktime(entry.published_parsed)
                         ).isoformat() if entry.get("published_parsed") else None
                     }
-                    print(message)
                     producer.produce(
                         topic=TOPIC_FUNDAMENTAL,
                         value=json.dumps(message).encode("utf-8"),
                         callback=delivery_report
                     )
             except Exception as e:
-                print(f"[ERROR] Falló el procesamiento del feed {feed_url}: {e}")
+                logger.error(f"Falló el procesamiento del feed {feed_url}: {e}")
 
 # --- BUCLE PRINCIPAL ---
 if __name__ == "__main__":

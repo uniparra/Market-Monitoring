@@ -6,9 +6,20 @@ from weaviate.client import WeaviateClient
 from operator import itemgetter
 from typing import List, Dict, Any
 import os
+import logging
 
 from .prompt import RAG_PROMPT
 from .llm import LLM
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 WEAVIATE_URL = os.getenv("WEAVIATE_URL", "http://localhost:8080")
 
@@ -17,9 +28,9 @@ try:
         host=WEAVIATE_URL.split(":")[0],
         port=int(WEAVIATE_URL.split(":")[-1])
     )
-    print("[INIT] Conexión a Weaviate exitosa.")
+    logger.info("Conexión a Weaviate exitosa.")
 except Exception as e:
-    print(f"[INIT] ERROR al conectar a Weaviate: {e}")
+    logger.info(f"ERROR al conectar a Weaviate: {e}")
     weaviate_client = None
 
 
@@ -93,7 +104,7 @@ def get_technical_signals(client: WeaviateClient, symbols: List[str] = None, lim
         return results
 
     except Exception as e:
-        print(f"[ERROR] Error al recuperar señales técnicas: {e}")
+        logger.error(f"Error al recuperar señales técnicas: {e}")
         return []
 
 

@@ -4,3 +4,5 @@ weaviate-client==4.17.0
 huggingface_hub
 pydantic==2.12.4
 pydantic-core==2.41.5
+langchain-huggingface==1.0.1
+numpy==2.3.4

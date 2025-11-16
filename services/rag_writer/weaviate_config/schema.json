@@ -3,9 +3,9 @@
     {
       "class": "FinancialNews",
       "description": "Noticias financieras relevantes para RAG.",
-      "vectorizer": "text2vec-huggingface",
+      "vectorizer": "text2vec-transformers",
       "moduleConfig": {
-        "text2vec-huggingface": {
+        "text2vec-transformers": {
           "model": "sentence-transformers/all-MiniLM-L6-v2",
           "waitForModel": true
         }
@@ -15,13 +15,7 @@
           "name": "title",
           "dataType": ["text"],
           "indexFilterable": false,
-          "indexSearchable": true,
-          "moduleConfig": {
-            "text2vec-huggingface": {
-              "skip": false,
-              "vectorizePropertyName": false
-            }
-          }
+          "indexSearchable": true
         },
         {
           "name": "link",

@@ -5,6 +5,7 @@ import logging
 from confluent_kafka import Consumer
 import weaviate
 import google.genai as genai
+from langchain_huggingface import HuggingFaceEndpointEmbeddings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,7 +22,6 @@ KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVER")
 TOPIC_FUNDAMENTAL = os.getenv("FUNDAMENTAL_TOPIC")
 TOPIC_TECHNICAL = os.getenv("PROCESSED_TECHNICAL_TOPIC")
 WEAVIATE_URL = os.getenv("WEAVIATE_URL")
-huggingface_key = os.getenv("HUGGINGFACE_APIKEY")
 
 # Kafka consumer
 consumer_conf = {
@@ -36,8 +36,7 @@ consumer.subscribe([TOPIC_FUNDAMENTAL, TOPIC_TECHNICAL])
 
 client = weaviate.connect_to_local(
     host=WEAVIATE_URL.split(":")[0],
-    port=int(WEAVIATE_URL.split(":")[1]),
-    headers={"X-HuggingFace-Api-Key": huggingface_key}
+    port=int(WEAVIATE_URL.split(":")[1])
 )
 
 with open("./weaviate_config/schema.json", "r") as f:
@@ -60,6 +59,10 @@ try:
     gemini_client = genai.Client()
 except Exception as e:
     pass
+
+embeddings = HuggingFaceEndpointEmbeddings(
+    model="sentence-transformers/all-MiniLM-L6-v2"
+)
 
 def generate_new(title):
     """
@@ -97,16 +100,19 @@ def generate_new(title):
 
 
 def insert_fundamental(payload):
+    summary = generate_new(payload.get("title"))
+    vector = embeddings.embed_query(payload.get("title") + "\n" + summary)
+
     data = {
         "title": payload.get("title"),
-        "summary": generate_new(payload.get("title")),
+        "summary": summary,
         "link": payload.get("link"),
         "source": payload.get("source"),
         "sourceId": payload.get("id"),
         "symbol": payload.get("symbol"),
         "publishedTimestamp": payload.get("publishedTimestamp")
     }
-    news_collection.data.insert(data)
+    news_collection.data.insert(properties=data, vector=vector)
     logger.info(f"[Weaviate] Inserted FinancialNews: {payload.get('id')}")
 
 

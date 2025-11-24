@@ -1,44 +1,100 @@
-# Market-Monitoring
+# Market Monitoring
 
+Sistema RAG (Retrieval-Augmented Generation) en tiempo real diseñado para responder preguntas sobre la acción de precio y movimientos del mercado de compañías del sector energético, aprovechando Apache Flink para procesamiento de streams y capacidades de búsqueda híbrida.
 
-Se ha diseñado un sistema RAG para responder preguntas de usuarios sobre acción de precio de ciertas compañías energéticas. Aunque no fuera el objetivo de la práctica dado que estoy realizando un curso de FLINK he visto la posibilidad de poner los nuevos conocimientos en práctica. El diagrama del servicio es el siguiente, 
-
+## Arquitectura General
 
 <img width="866" height="618" alt="Diagrama_de_Arquitectura_Completa" src="https://github.com/user-attachments/assets/87af1d47-c6c9-4c43-8ccf-c4ffddced738" />
 
-En resumen, 
+## Componentes del Sistema
 
-1. Se ingestan noticias financieras desde un par de RSS Feeds y se obtienen datos tecnicos sobre precio de las compañías energéticas, 
-2. Éstas se enriquecen con flink para poder obtener ciertas métricas simples, usadas para análisis técnico.
-3. Un consumer que guarda los datos tecnicos enriquecidos y los fundamentales en el vector store weaviate, elegido por su capacidad de generar objetos con varias capas, el vector, los filtros y las búsquedas de palabras clave. De esta forma se pueden diseñar fácilmente estrategias de búsqueda hibrida que mejoran la performace del retrieve. Por otro lado, dado que los datos técnicos no tienen gran semántica se han usado dos estrategias de indexación,
+### 1. Ingesta de Datos
+El sistema ingesta datos de múltiples fuentes:
+- Noticias financieras a través de feeds RSS
+- Datos técnicos de precio para compañías del sector energético
 
-    1. Inverse Index para los datos técnicos estos no se vectorizan ya que es suficiente con filtrar symbolos, rangos de fechas y buscar eventos determinados.
-    2. Indexación hibrida para los datos fundamentales, se vectoriza la noticia y se disponibilizan ciertos campos, como source, symbol o publishedTimestamp como filtros estructurados. Esto permite combinar búsquedas por similitud semántica con filtrados específicos, equilibrando recuperación contextual y precisión en la selección.
+### 2. Procesamiento de Streams con Apache Flink
+Pipeline de enriquecimiento de datos en tiempo real que calcula métricas e indicadores de análisis técnico comúnmente utilizados en análisis financiero.
 
-4. Como modelo de embedding se ha usado, sentence-transformers/all-MiniLM-L6-v2 de huggingface, por estar optimizada para representación semántica eficiente de texto, y ofrece una excelente relación entre rendimiento y coste computacional, lo que resulta clave en un sistema RAG que se actualiza en tiempo real. En lo académico, también por explorar otras opcio 
-    1. En determinados casos sí realizaría fine-tuning con el objetivo de enseñar al modelo a relacionar noticias geopolíticas con variaciones en el precio de los activos, utilizando pares de frases como “Sube el precio del Brent por tensiones geopolíticas” y “El crudo se encarece tras el conflicto en Oriente Medio”.nes fuera de las opciones comerciales más conocidas.
+### 3. Estrategia de Indexación Híbrida
+Los datos se almacenan en **Weaviate**, una base de datos vectorial elegida por su estructura de objetos multicapa que soporta vectores, filtros y búsquedas por palabras clave. El sistema emplea dos estrategias de indexación distintas:
 
-5. El retriever usa gemini. Esencialmente porque ofrece un buen balance entre calidad de respuestas, capacidad gratuita e integración con langchain. Esto se integra en el mismo servicio que el backend. Donde además de disponibilizar el post query también se da una opción de pregutnar sobre empresas en concreto a partir de su symbolo.
+#### Datos Técnicos (Índice Invertido)
+Los datos técnicos de precio se almacenan mediante indexación invertida sin vectorización. Este enfoque permite filtrado eficiente por:
+- Símbolos bursátiles
+- Rangos de fechas
+- Eventos técnicos específicos
 
-6. Se ha creado también un pequeño front con streamlit.
+#### Datos Fundamentales (Índice Híbrido)
+Las noticias se indexan mediante un enfoque híbrido:
+- **Vectorización semántica** del contenido de artículos para búsqueda por similitud
+- **Filtros estructurados** para metadatos (fuente, símbolo, timestamp de publicación)
+- Esta combinación balancea recuperación contextual con filtrado de precisión
 
+### 4. Modelo de Embeddings
+El sistema utiliza **sentence-transformers/all-MiniLM-L6-v2** de Hugging Face, seleccionado por:
+- Representación semántica optimizada de texto
+- Excelente relación rendimiento-coste
+- Idoneidad para sistemas RAG en tiempo real
 
+**Mejora Potencial**: Realizar fine-tuning del modelo con pares específicos del dominio (ej. "Sube el precio del Brent por tensiones geopolíticas" → "El crudo se encarece tras el conflicto en Oriente Medio") podría mejorar la correlación entre noticias geopolíticas y movimientos de precio de activos.
 
-## Cómo ejecutar
-Configurar el .env ir añadiendo lo siguiente, 
+### 5. Recuperación y Generación
+El retriever utiliza **Google Gemini** por:
+- Generación de respuestas de calidad
+- Operación rentable dentro de los límites del tier gratuito
+- Integración nativa con LangChain
+
+El servicio backend proporciona:
+- Consultas generales de mercado
+- Análisis específico de compañías por símbolo
+
+### 6. Interfaz de Usuario
+Un frontend basado en Streamlit proporciona una interfaz intuitiva para la interacción con el sistema.
+
+## Primeros Pasos
+
+### Requisitos Previos
+Crea un archivo `.env` con las siguientes claves API:
+
+```env
+TWELVE_DATA_API_KEY=tu_clave_aqui
+OPENAI_API_KEY=tu_clave_aqui
+GOOGLE_API_KEY=tu_clave_aqui
+GOOGLE_PROJECT_ID=tu_id_de_proyecto
+HUGGINGFACE_APIKEY=tu_clave_aqui
 ```
-TWELVE_DATA_API_KEY=
-OPENAI_API_KEY=
-GOOGLE_API_KEY=
-GOOGLE_PROJECT_ID=
-HUGGINGFACE_APIKEY=
-```
-Montar el docker compose. Tras ello abrimos, http://localhost:8501/ que es donde estará el front para interactuar con el rag.
 
+### Instalación
 
+1. Configura tu archivo `.env` con las claves API requeridas
+2. Inicia los servicios usando Docker Compose:
+   ```bash
+   docker-compose up
+   ```
+3. Accede al frontend en `http://localhost:8501`
 
-## Cosas a mejorar:
-1. Gestionar la eliminación de los índices. Ya que es un proceso, que en el caso de que estuviera en producción sería un proceso de streaming habría que gestionar bien la eliminación de índices. Los datos técnicos se podrían borrar con un criterio de tiempo, según volumetría eliminar aquellos que tienen más de X tiempo. Tal vez añadir un proceso que los compactifique. Es decir, que vaya guardando sólo ciertos datos técnicos con relevancia a futuro y eliminar los demás. En cuanto a las noticias sin valor de presente simplemente se podrían guardar en un data storage etiquetandolos según relevancia que ya hayan tenido en precio de acción para un futuro entrenamiento y eliminarlas del vector store al cabo de X tiempo.
-2. Las RSS Feeds no me daban información sobre el articulo en cuestion, solo una url, al no haber encontrado mejores fuentes he acudido a un agente de ia para que se inventara, a partir de los titulares, un resumen de noticia que es lo que he usado como noticia. Por lo que un web scraper sería ideal en este punto.
-3. El diseño funcional seguramente sea muy mejorable, desde las señales técnicas calculadas hasta las fuentes de las noticias son mejorables.
-4. Y muchas más.
+## Mejoras Futuras
+
+### Gestión de Índices
+Para un despliegue en producción, implementar gestión del ciclo de vida para datos en streaming:
+- **Datos técnicos**: Políticas de retención basadas en tiempo, estrategias de compactación de datos y archivo selectivo de indicadores históricos relevantes
+- **Datos de noticias**: Archivar artículos según su impacto histórico en la acción de precio para futuros entrenamientos del modelo, con eliminación automática del vector store después de un período definido
+
+### Fuentes de Datos Mejoradas
+Reemplazar la implementación actual de feeds RSS con un web scraper robusto para extraer el contenido completo de los artículos en lugar de depender de resúmenes generados por IA a partir de titulares.
+
+### Calidad de Señales
+Refinar los indicadores técnicos calculados por el pipeline de Flink y diversificar las fuentes de noticias para mejorar la calidad de las señales y la cobertura.
+
+### Mejoras Adicionales
+Se planean mejoras continuas en la fiabilidad del sistema, rendimiento y capacidades analíticas.
+
+## Stack Tecnológico
+
+- **Procesamiento de Streams**: Apache Flink
+- **Base de Datos Vectorial**: Weaviate
+- **Embeddings**: sentence-transformers/all-MiniLM-L6-v2
+- **LLM**: Google Gemini
+- **Frontend**: Streamlit
+- **Orquestación**: Docker Compose
